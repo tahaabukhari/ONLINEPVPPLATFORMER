@@ -95,7 +95,7 @@ class GameScene extends Phaser.Scene {
 class MenuScene extends Phaser.Scene {
     constructor() {
         super({ key: 'MenuScene' });
-        this.socket = io();
+        this.socket = io('https://ab66dc3b-2913-4585-898b-37955b89ae07-00-2ppfzzn9vea2f.pike.replit.dev');
     }
 
     preload() {
@@ -160,6 +160,12 @@ class MenuScene extends Phaser.Scene {
             this.createRoom();
         });
 
+        const socket = io('https://ab66dc3b-2913-4585-898b-37955b89ae07-00-2ppfzzn9vea2f.pike.replit.dev');
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+        
         const joinRoomButton = this.add.text(
             this.cameras.main.centerX, 
             this.cameras.main.centerY + 40, 
