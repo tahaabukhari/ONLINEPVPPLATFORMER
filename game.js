@@ -22,6 +22,17 @@ class GameScene extends Phaser.Scene {
         const platformX = this.cameras.main.centerX;
         const platformY = this.cameras.main.height - platformHeight / 2;
 
+        // Create pause button
+        this.pauseButton = this.add.image(this.cameras.main.width - 30, 30, 'pauseButton')
+            .setOrigin(1, 0)
+            .setInteractive()
+            .setDisplaySize(40, 40);
+
+        // Pause button event
+        this.pauseButton.on('pointerdown', () => {
+            this.showPauseMenu();
+        });
+        
         const platform = this.matter.add.rectangle(platformX, platformY, platformWidth, platformHeight, { isStatic: true });
         this.add.image(platformX, platformY, 'platform').setDisplaySize(platformWidth, platformHeight).setOrigin(0.5);
 
@@ -92,7 +103,45 @@ class GameScene extends Phaser.Scene {
             player.setVelocityY(-15);
         }
     }
-}
+
+    showPauseMenu() {
+            // Create a pause menu background
+            const pauseMenuBackground = this.add.graphics()
+                .fillStyle(0x000000, 0.7)
+                .fillRect(0, 0, this.cameras.main.width, this.cameras.main.height);
+
+            // Create a menu container
+            const menuContainer = this.add.container(this.cameras.main.centerX, this.cameras.main.centerY);
+
+            // Create "Leave" button
+            const leaveButton = this.add.text(0, -40, 'Leave Game', { fontSize: '24px', fill: '#FFF' })
+                .setOrigin(0.5)
+                .setInteractive();
+
+            leaveButton.on('pointerdown', () => {
+                // Notify server that the player is leaving
+                this.socket.emit('leaveGame', { gameCode: this.gameCode });
+
+                // Stop the game and return to the title screen
+                this.scene.stop('GameScene');
+                this.scene.start('MenuScene');
+            });
+
+            menuContainer.add([leaveButton]);
+
+            // Add back button to remove the pause menu
+            const backButton = this.add.text(0, 40, 'Back', { fontSize: '24px', fill: '#FFF' })
+                .setOrigin(0.5)
+                .setInteractive();
+
+            backButton.on('pointerdown', () => {
+                pauseMenuBackground.destroy();
+                menuContainer.destroy();
+            });
+
+            menuContainer.add(backButton);
+        }
+    }
 
 class MenuScene extends Phaser.Scene {
     constructor() {
@@ -245,14 +294,14 @@ class MenuScene extends Phaser.Scene {
         inputElement.type = 'text';
         inputElement.placeholder = 'Enter Game Code';
         inputElement.style.position = 'absolute';
-        inputElement.style.left = `${this.cameras.main.centerX - 100}px`;
-        inputElement.style.top = `${this.cameras.main.centerY}px`;
+        inputElement.style.left = `${this.cameras.main.centerX - 250}px`;
+        inputElement.style.top = `${this.cameras.main.centerY - 100}px`;
         document.body.appendChild(inputElement);
 
         const joinRoomButton = this.add.text(
             this.cameras.main.centerX, 
             this.cameras.main.centerY + 40, 
-            'Join Room', 
+            'Join', 
             { fontSize: '24px', fill: '#FFF' }
         )
         .setOrigin(0.5)
@@ -260,16 +309,31 @@ class MenuScene extends Phaser.Scene {
 
         joinRoomButton.on('pointerdown', () => {
             const gameCode = inputElement.value;
-            document.body.removeChild(inputElement);
 
+            // Emit the joinRoom event with the gameCode to the server
             this.socket.emit('joinRoom', { gameCode });
 
+            // Handle the roomJoined event from the server
             this.socket.on('roomJoined', () => {
+                if (inputElement) document.body.removeChild(inputElement);
                 this.scene.start('GameScene', { gameCode, isPlayer1: false, socket: this.socket });
             });
 
+            // Handle errors (e.g., room does not exist or is invalid)
             this.socket.on('error', (errMsg) => {
-                console.error(errMsg); // Handle error message appropriately
+                console.error(errMsg);
+
+                // Display the invalid room message
+                const invalidRoomText = this.add.text(
+                    this.cameras.main.centerX, 
+                    this.cameras.main.centerY - 100, 
+                    'Invalid Room Code', 
+                    { fontSize: '32px', fill: 'white' }
+                ).setOrigin(0.5);
+
+                this.time.delayedCall(4000, () => {
+                    invalidRoomText.destroy();
+                });
             });
         });
 
@@ -284,7 +348,7 @@ class MenuScene extends Phaser.Scene {
 
         backButton.on('pointerdown', () => {
             if (joinRoomButton) joinRoomButton.destroy();
-            if (inputcode) inputcode.destroy();
+            if (inputElement) document.body.removeChild(inputElement);
             if (backButton) backButton.destroy();
             this.showPlayOptions();
         });
@@ -298,6 +362,81 @@ class MenuScene extends Phaser.Scene {
 
         this.socket.on('disconnect', () => {
             console.log('Disconnected from server');
+        });
+    }
+
+    showOptions(title, playButton, optionsButton) {
+        // Destroy the current title, play, and options buttons
+        if (title) title.destroy();
+        if (playButton) playButton.destroy();
+        if (optionsButton) optionsButton.destroy();
+
+        // Create the 'Game Settings' button
+        const gameSettingsButton = this.add.text(
+            this.cameras.main.centerX, 
+            this.cameras.main.centerY - 60, 
+            'Game Settings', 
+            { fontSize: '24px', fill: '#FFF' }
+        )
+        .setOrigin(0.5)
+        .setInteractive();
+
+        // Create the 'Sound Settings' button
+        const soundSettingsButton = this.add.text(
+            this.cameras.main.centerX, 
+            this.cameras.main.centerY, 
+            'Sound Settings', 
+            { fontSize: '24px', fill: '#FFF' }
+        )
+        .setOrigin(0.5)
+        .setInteractive();
+
+        // Create the 'Credits' button
+        const creditsButton = this.add.text(
+            this.cameras.main.centerX, 
+            this.cameras.main.centerY + 60, 
+            'Credits', 
+            { fontSize: '24px', fill: '#FFF' }
+        )
+        .setOrigin(0.5)
+        .setInteractive();
+
+        // Create the 'Back' button
+        const backButton = this.add.text(
+            this.cameras.main.centerX, 
+            this.cameras.main.centerY + 120, 
+            'Back', 
+            { fontSize: '24px', fill: '#FFF' }
+        )
+        .setOrigin(0.5)
+        .setInteractive();
+
+        // Handle 'Back' button click
+        backButton.on('pointerdown', () => {
+            // Destroy the options buttons
+            gameSettingsButton.destroy();
+            soundSettingsButton.destroy();
+            creditsButton.destroy();
+            backButton.destroy();
+
+            // Return to the main menu
+            this.create();
+        });
+
+        // Placeholder handlers for the settings and credits buttons
+        gameSettingsButton.on('pointerdown', () => {
+            console.log('Game Settings clicked');
+            // Implement game settings logic here
+        });
+
+        soundSettingsButton.on('pointerdown', () => {
+            console.log('Sound Settings clicked');
+            // Implement sound settings logic here
+        });
+
+        creditsButton.on('pointerdown', () => {
+            console.log('Credits clicked');
+            // Implement credits logic here
         });
     }
 }
