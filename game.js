@@ -291,7 +291,7 @@ class MenuScene extends Phaser.Scene {
     }
 
     connectToServer() {
-        this.socket = io('https://untitled-pvp-game-server-lksq22vnj-tahaas-projects-41bdfdb5.vercel.app');
+        this.socket = io('https://ab66dc3b-2913-4585-898b-37955b89ae07-00-2ppfzzn9vea2f.pike.replit.dev/');
         this.socket.on('connect', () => {
             console.log('Connected to server');
         });
