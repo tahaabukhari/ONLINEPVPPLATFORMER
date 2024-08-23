@@ -6,7 +6,7 @@ class GameScene extends Phaser.Scene {
     init(data) {
         this.gameCode = data.gameCode;
         this.isPlayer1 = data.isPlayer1;
-        this.socket = io();
+        this.socket = data.socket; // Pass the socket connection from the previous scene
     }
 
     preload() {
@@ -56,6 +56,8 @@ class GameScene extends Phaser.Scene {
     }
 
     update() {
+        if (!this.socket || !this.socket.connected) return; // Skip update if not connected
+
         const player = this.isPlayer1 ? this.player1 : this.player2;
         this.handlePlayerMovement(player, this.cursors);
 
@@ -95,7 +97,6 @@ class GameScene extends Phaser.Scene {
 class MenuScene extends Phaser.Scene {
     constructor() {
         super({ key: 'MenuScene' });
-        this.socket = io('https://ab66dc3b-2913-4585-898b-37955b89ae07-00-2ppfzzn9vea2f.pike.replit.dev');
     }
 
     preload() {
@@ -103,6 +104,8 @@ class MenuScene extends Phaser.Scene {
     }
 
     create() {
+        this.connectToServer(); // Establish the server connection when the MenuScene is created
+
         const title = this.add.text(
             this.cameras.main.centerX, 
             this.cameras.main.centerY - 100, 
@@ -160,12 +163,6 @@ class MenuScene extends Phaser.Scene {
             this.createRoom();
         });
 
-        const socket = io('https://ab66dc3b-2913-4585-898b-37955b89ae07-00-2ppfzzn9vea2f.pike.replit.dev');
-
-        socket.on('connect', () => {
-            console.log('Connected to server');
-        });
-        
         const joinRoomButton = this.add.text(
             this.cameras.main.centerX, 
             this.cameras.main.centerY + 40, 
@@ -238,7 +235,7 @@ class MenuScene extends Phaser.Scene {
         this.socket.on('player2Connected', () => {
             waitingText.setText('Player 2 Connected!');
             setTimeout(() => {
-                this.scene.start('GameScene', { gameCode, isPlayer1: true });
+                this.scene.start('GameScene', { gameCode, isPlayer1: true, socket: this.socket });
             }, 1000);
         });
     }
@@ -255,23 +252,24 @@ class MenuScene extends Phaser.Scene {
         const joinRoomButton = this.add.text(
             this.cameras.main.centerX, 
             this.cameras.main.centerY + 40, 
-            'Join', 
-            { fontSize: '32px', fill: '#FFF' }
+            'Join Room', 
+            { fontSize: '24px', fill: '#FFF' }
         )
         .setOrigin(0.5)
         .setInteractive();
 
         joinRoomButton.on('pointerdown', () => {
-            const gameCode = inputElement.value.toUpperCase();
+            const gameCode = inputElement.value;
+            document.body.removeChild(inputElement);
+
             this.socket.emit('joinRoom', { gameCode });
-            inputElement.remove();
 
             this.socket.on('roomJoined', () => {
-                this.scene.start('GameScene', { gameCode, isPlayer1: false });
+                this.scene.start('GameScene', { gameCode, isPlayer1: false, socket: this.socket });
             });
 
-            this.socket.on('error', (message) => {
-                alert(message);
+            this.socket.on('error', (errMsg) => {
+                console.error(errMsg); // Handle error message appropriately
             });
         });
 
@@ -285,10 +283,21 @@ class MenuScene extends Phaser.Scene {
         .setInteractive();
 
         backButton.on('pointerdown', () => {
-            inputElement.remove();
             if (joinRoomButton) joinRoomButton.destroy();
+            if (inputcode) inputcode.destroy();
             if (backButton) backButton.destroy();
             this.showPlayOptions();
+        });
+    }
+
+    connectToServer() {
+        this.socket = io('https://untitled-pvp-game-server-lksq22vnj-tahaas-projects-41bdfdb5.vercel.app');
+        this.socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        this.socket.on('disconnect', () => {
+            console.log('Disconnected from server');
         });
     }
 }
@@ -297,16 +306,13 @@ const config = {
     type: Phaser.AUTO,
     width: 800,
     height: 600,
-    backgroundColor: '#2d2d2d',
+    scene: [MenuScene, GameScene],
     physics: {
         default: 'matter',
         matter: {
-            gravity: {
-                y: 1
-            }
+            gravity: { y: 0.5 }
         }
-    },
-    scene: [MenuScene, GameScene]
+    }
 };
 
 const game = new Phaser.Game(config);
